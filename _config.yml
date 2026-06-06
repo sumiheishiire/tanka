@@ -1,0 +1,9 @@
+# GitHub Pages configuration
+include:
+  - dashboard_sp.html
+  - index.html
+  - redirect.html
+
+# Jekyll settings
+markdown: kramdown
+theme: null
