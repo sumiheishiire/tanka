@@ -432,6 +432,9 @@ mark{background:#fde68a;color:var(--text);border-radius:2px;padding:0 1px}
       <input type="email" id="cfg-email" placeholder="report@sumihei.co.jp">
       <label>緊急通知の送信先（カンマ区切りで複数可）</label>
       <input type="email" id="cfg-urgent" placeholder="manager@sumihei.co.jp">
+      <label style="margin-top:8px">新メーカー追加通知 - Web3Forms APIキー（<a href="https://web3forms.com" target="_blank" style="color:var(--accent)">web3forms.com</a> で無料取得）</label>
+      <input type="text" id="cfg-w3f" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:monospace;font-size:11px">
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">APIキーを設定すると、新メーカーが追加されたときに自動でメール通知が届きます</div>
     </div>
     <div class="modal-sec">
       <div class="modal-sec-t">☁ SharePoint 管理</div>
@@ -1097,7 +1100,7 @@ async function spLoadAll() {
         '販売推奨D':         gn(f,'販売推奨D'),
         '次回値上げ時期':    gf(f,'次回値上げ時期'),
         '値上げ価格':        gn(f,'値上げ価格'),
-        'メーカー名':        gf(f,'支店')==='長野支店' ? gf(f,'メーカー名') : '',
+        'メーカー名':        (()=>{const v=gf(f,'メーカー名')||'',br=gf(f,'支店');return (br!=='長野支店'&&/^\d/.test(v))?'':v;})(),
         '注文日':            gf(f,'注文日'),
         '備考':              gf(f,'備考')
       };
@@ -1473,6 +1476,7 @@ let changeLog=JSON.parse(localStorage.getItem('dash_cl')||'[]');
 let localData=JSON.parse(localStorage.getItem('dash_data')||'null');
 if(!localData)localData=JSON.parse(JSON.stringify([...RAW_DATA,...BRANCH_ID01,...BRANCH_KO01,...BRANCH_MA01,...BRANCH_SU01,...BRANCH_EP01,...BRANCH_KA01]));
 let notifEmail=localStorage.getItem('dash_email')||'';
+let web3fKey=localStorage.getItem('dash_w3f')||'';
 let urgentEmail=localStorage.getItem('dash_urgent')||'';
 let currentRows=[];
 
@@ -1892,7 +1896,7 @@ ${branchTd}
 <td class="r" style="background:#f0fdf4">${gpCell}</td>
 <td>${r['次回値上げ時期']?`<span style="color:var(--orange);font-size:11px">${esc(r['次回値上げ時期'])}</span>${cdBadge}`:'-'}</td>
 <td class="r" style="color:var(--red);font-weight:800">${ed('値上げ価格',r['値上げ価格'],true)}</td>
-<td class="mname" title="${esc(r['メーカー名'])}" onclick="clickMakerName('${esc((r['メーカー名']||'').replace(/'/g,"\\'"))}',event)" style="cursor:pointer;user-select:none">${buildMakerCell(r['メーカー名']||'',rawQ)}</td>
+<td class="mname" ${(!canEdit||r['支店']==='長野支店')?`onclick="clickMakerName('${esc((r['メーカー名']||'').replace(/'/g,"\\'"))}',event)" style="cursor:pointer;user-select:none"`:''}>${canEdit&&r['支店']!=='長野支店'?buildMakerEditSelect(r['メーカー名']||'',idx):buildMakerCell(r['メーカー名']||'',rawQ)}</td>
 <td>${ord?`<span class="otag">${canEdit?`<span contenteditable="true" data-idx="${idx}" data-field="注文日" data-orig="${r['注文日']}" onblur="onEdit(this)" onclick="event.stopPropagation()" style="color:#fff">${r['注文日']}</span>`:esc(r['注文日'])}</span>`:canEdit?`<span contenteditable="true" data-idx="${idx}" data-field="注文日" data-orig="" onblur="onEdit(this)" onclick="event.stopPropagation()"> </span>`:'-'}</td>
 </tr>`;
   }).join('');
@@ -1921,6 +1925,58 @@ function onEdit(el){
   updateCLPanel();toast(`${localData[idx]['商品№']} を更新しました`,'success');
   const spId=localData[idx]._spId, branch=localData[idx]['支店']||'', no=localData[idx]['商品№']||'';
   if(spId){ spSaveField(spId,field,newVal); spLogHistory(no,branch,field,orig,newVal); }
+}
+
+// ── メーカー名ドロップダウン（長野支店以外の編集モード用）──
+function _getNaganoMakers(){
+  return [...new Set(localData.filter(r=>r['支店']==='長野支店'&&r['メーカー名']).map(r=>r['メーカー名']))].sort();
+}
+function buildMakerEditSelect(cur,idx){
+  const list=_getNaganoMakers();
+  const opts=list.map(m=>`<option value="${esc(m)}"${m===cur?' selected':''}>${esc(m)}</option>`).join('');
+  return `<select data-idx="${idx}" onchange="onMakerSelect(this)" onclick="event.stopPropagation()"
+    style="width:100%;max-width:150px;font-size:11px;padding:2px 4px;border:1px solid var(--accent);border-radius:4px;background:var(--card);color:var(--text)">
+    <option value="">── 選択 ──</option>${opts}
+    <option value="__new__">＋ 新規入力…</option>
+  </select>`;
+}
+async function onMakerSelect(sel){
+  const idx=+sel.dataset.idx;
+  const orig=localData[idx]['メーカー名']||'';
+  let newVal;
+  if(sel.value==='__new__'){
+    const input=prompt('新しいメーカー名を入力してください:');
+    if(!input||!input.trim()){sel.value=orig;return;}
+    newVal=input.trim();
+    if(!_getNaganoMakers().includes(newVal)) notifyNewMaker(newVal,localData[idx]['支店']||'');
+  }else{
+    newVal=sel.value;
+  }
+  if(!newVal||newVal===orig)return;
+  localData[idx]['メーカー名']=newVal;
+  logChange(localData[idx]['商品№'],'メーカー名',orig,newVal);
+  localStorage.setItem('dash_data',JSON.stringify(localData));
+  updateCLPanel();
+  toast(`メーカー名を更新しました: ${newVal}`,'success');
+  const spId=localData[idx]._spId,branch=localData[idx]['支店']||'',no=localData[idx]['商品№']||'';
+  if(spId){spSaveField(spId,'メーカー名',newVal);spLogHistory(no,branch,'メーカー名',orig,newVal);}
+  render();
+}
+async function notifyNewMaker(makerName,branch){
+  if(!web3fKey){console.warn('Web3Forms APIキー未設定（設定画面で登録してください）');return;}
+  try{
+    await fetch('https://api.web3forms.com/submit',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        access_key:web3fKey,
+        subject:`【ダッシュボード】新メーカー追加: ${makerName}`,
+        from_name:'在庫ダッシュボード',
+        message:`新しいメーカー名が追加されました。\n\n支店: ${branch}\nメーカー名: ${makerName}\n\nネクストセットURLの紐付けをお願いします。\nhttps://tanka-three.vercel.app`
+      })
+    });
+    console.log('新メーカー通知を送信しました');
+  }catch(e){console.warn('通知送信エラー（データは保存済み）',e);}
 }
 
 // ── 販売推奨単価 手入力上書き ──
@@ -1995,6 +2051,7 @@ function openCfg(){
   document.getElementById('cfg-rd').value=tierRates.D;
   document.getElementById('cfg-email').value=notifEmail;
   document.getElementById('cfg-urgent').value=urgentEmail;
+  document.getElementById('cfg-w3f').value=web3fKey;
   renderNextsetList();
   populateNextsetMakerSel();
   document.getElementById('cfg-overlay').classList.add('show');
@@ -2004,9 +2061,11 @@ function saveCfg(){
   tierRates={A:+document.getElementById('cfg-ra').value||30,B:+document.getElementById('cfg-rb').value||25,C:+document.getElementById('cfg-rc').value||20,D:+document.getElementById('cfg-rd').value||15};
   notifEmail=document.getElementById('cfg-email').value.trim();
   urgentEmail=document.getElementById('cfg-urgent').value.trim();
+  web3fKey=document.getElementById('cfg-w3f').value.trim();
   localStorage.setItem('dash_tier_rates',JSON.stringify(tierRates));
   localStorage.setItem('dash_email',notifEmail);
   localStorage.setItem('dash_urgent',urgentEmail);
+  localStorage.setItem('dash_w3f',web3fKey);
   // ネクストセットリンク：input要素から最新値を収集して保存
   document.querySelectorAll('#nextset-list [data-maker]').forEach(inp=>{
     if(inp.value.trim()) _nextsetLinks[inp.dataset.maker]=inp.value.trim();
