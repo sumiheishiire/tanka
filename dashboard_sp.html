@@ -107,6 +107,7 @@ thead th.price-hd{background:#1a3352;border-top:2px solid #3b82f6}
 thead th.gp-hd{background:#1a3352;border-top:2px solid #10b981}
 .th-auto{display:block;font-size:8.5px;font-weight:600;color:#6ee7b7;letter-spacing:.03em;margin-top:2px;opacity:.9}
 .th-manual{display:block;font-size:8.5px;font-weight:600;color:#fbbf24;letter-spacing:.03em;margin-top:2px;opacity:.9}
+@keyframes pulse-guide{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.6)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
 @keyframes importFlash{0%{background:#fef08a!important;box-shadow:inset 0 0 0 2px #eab308}60%{background:#fef9c3!important}100%{background:transparent}}
 .cell-chg{animation:importFlash 3s ease-out forwards}
 /* Import banner */
@@ -744,8 +745,17 @@ mark{background:#fde68a;color:var(--text);border-radius:2px;padding:0 1px}
     <button class="hbtn btn-ghost" onclick="openCfg()" title="設定">⚙ 設定</button>
     <button class="hbtn btn-ghost" onclick="openHelp()" title="ヘルプ・機能一覧">❓ ヘルプ</button>
     <button class="hbtn" style="background:rgba(139,92,246,.85);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="openManual()">📖 使い方</button>
+    <a href="./guide.html" target="_blank" class="hbtn" style="background:#f59e0b;color:#fff;border:1px solid rgba(255,255,255,.3);font-weight:800;animation:pulse-guide 2s infinite;text-decoration:none" title="初めての方はこちら">🆘 操作ガイド</a>
   </div>
 </header>
+<!-- 初回案内バナー -->
+<div id="guide-banner" style="display:none;background:#fef3c7;border-bottom:2px solid #f59e0b;padding:10px 16px;display:flex;align-items:center;gap:12px;font-size:13px">
+  <span style="font-size:20px">👋</span>
+  <span><strong>はじめての方へ：</strong>操作方法は「🆘 操作ガイド」ボタンで確認できます。パスワードや編集方法をわかりやすく説明しています。</span>
+  <a href="./guide.html" target="_blank" style="background:#f59e0b;color:#fff;border-radius:6px;padding:5px 14px;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0">今すぐ確認 →</a>
+  <button onclick="document.getElementById('guide-banner').style.display='none';localStorage.setItem('guide_seen','1')" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:18px;color:#92400e;flex-shrink:0">✕</button>
+</div>
+<script>if(!localStorage.getItem('guide_seen'))document.getElementById('guide-banner').style.display='flex';</script>
 
 <div class="notif-bar" id="notif-bar">
   <span>🔔 ブラウザ通知が無効です。</span>
