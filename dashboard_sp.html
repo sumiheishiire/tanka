@@ -52,7 +52,9 @@ header{background:linear-gradient(135deg,#162e4a,#1e3a5f 50%,#235a8c);color:#fff
 select{padding:6px 9px;border:2px solid var(--border);border-radius:8px;font-size:12px;outline:none;background:#fff;cursor:pointer;font-family:inherit;max-width:175px}
 select:focus{border-color:var(--blue)}
 .fbtns{display:flex;gap:5px;flex-wrap:wrap}
-.fb{padding:5px 10px;border:2px solid var(--border);border-radius:20px;cursor:pointer;font-size:11px;font-weight:700;background:#fff;color:var(--muted);font-family:inherit;white-space:nowrap;transition:.12s}
+.fb{padding:5px 10px;border:2px solid var(--border);border-radius:20px;cursor:grab;font-size:11px;font-weight:700;background:#fff;color:var(--muted);font-family:inherit;white-space:nowrap;transition:.12s}
+.fb.dragging{opacity:.35;cursor:grabbing}
+.fb.drag-over{border-color:var(--accent);background:var(--blue-light,#eff6ff);transform:scale(1.05)}
 .fb:hover{background:#f8fafc}
 .fb.on.w{background:var(--orange);color:#fff;border-color:var(--orange)}
 .fb.on.n{background:var(--red);color:#fff;border-color:var(--red)}
@@ -770,13 +772,13 @@ mark{background:#fde68a;color:var(--text);border-radius:2px;padding:0 1px}
     <button class="sw-clear" id="sw-clear" onclick="clearSearch()">✕</button>
   </div>
   <select id="sel-m" onchange="render()"><option value="">全メーカー</option></select>
-  <div class="fbtns">
-    <button class="fb w" id="fb-w" onclick="tog('w')">⚠ 値上予定</button>
-    <button class="fb u" id="fb-u" onclick="tog('u')">✅ 単価更新済</button>
-    <button class="fb n" id="fb-n" onclick="tog('n')">📉 在庫マイナス</button>
-    <button class="fb o" id="fb-o" onclick="tog('o')">🔄 注文中</button>
-    <button class="fb m" id="fb-m" onclick="tog('m')" title="前回取込から在庫数が変化した商品">📦 在庫動き <span id="fb-m-cnt"></span></button>
-    <button class="fb r" id="fb-r" onclick="tog('r')" title="在庫が動いた＋仕入単価あり → 単価見直しが必要な可能性">🔧 要確認 <span id="fb-r-cnt"></span></button>
+  <div class="fbtns" id="fbtns-container">
+    <button class="fb w" id="fb-w" draggable="true" onclick="tog('w')" title="ドラッグで並び替え可">⚠ 値上予定</button>
+    <button class="fb u" id="fb-u" draggable="true" onclick="tog('u')" title="ドラッグで並び替え可">✅ 単価更新済</button>
+    <button class="fb n" id="fb-n" draggable="true" onclick="tog('n')" title="ドラッグで並び替え可">📉 在庫マイナス</button>
+    <button class="fb o" id="fb-o" draggable="true" onclick="tog('o')" title="ドラッグで並び替え可">🔄 注文中</button>
+    <button class="fb m" id="fb-m" draggable="true" onclick="tog('m')" title="ドラッグで並び替え可">📦 在庫動き <span id="fb-m-cnt"></span></button>
+    <button class="fb r" id="fb-r" draggable="true" onclick="tog('r')" title="ドラッグで並び替え可">🔧 要確認 <span id="fb-r-cnt"></span></button>
   </div>
   <div class="ctrl-right">
     <button class="rbtn" onclick="resetAll()">↺ リセット</button>
@@ -1591,6 +1593,64 @@ function srt(i){
 
 // ── フィルター ──
 function tog(f){fl[f]=fl[f]?0:1;document.getElementById('fb-'+f).classList.toggle('on',!!fl[f]);render();}
+
+// ── フィルターボタン ドラッグ＆ドロップ並び替え ──
+(function(){
+  let dragSrc=null;
+  function saveFbOrder(){
+    const ids=[...document.querySelectorAll('#fbtns-container .fb')].map(b=>b.id);
+    localStorage.setItem('fb_order',JSON.stringify(ids));
+  }
+  function loadFbOrder(){
+    try{
+      const saved=JSON.parse(localStorage.getItem('fb_order')||'null');
+      if(!saved||!Array.isArray(saved))return;
+      const container=document.getElementById('fbtns-container');
+      if(!container)return;
+      saved.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)container.appendChild(el);
+      });
+    }catch(e){}
+  }
+  function initFbDrag(){
+    const container=document.getElementById('fbtns-container');
+    if(!container)return;
+    container.querySelectorAll('.fb').forEach(btn=>{
+      btn.addEventListener('dragstart',e=>{
+        dragSrc=btn;
+        btn.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';
+      });
+      btn.addEventListener('dragend',()=>{
+        btn.classList.remove('dragging');
+        container.querySelectorAll('.fb').forEach(b=>b.classList.remove('drag-over'));
+        saveFbOrder();
+      });
+      btn.addEventListener('dragover',e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+        if(btn!==dragSrc){
+          container.querySelectorAll('.fb').forEach(b=>b.classList.remove('drag-over'));
+          btn.classList.add('drag-over');
+        }
+      });
+      btn.addEventListener('drop',e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        if(dragSrc&&dragSrc!==btn){
+          const btns=[...container.querySelectorAll('.fb')];
+          const fromIdx=btns.indexOf(dragSrc);
+          const toIdx=btns.indexOf(btn);
+          if(fromIdx<toIdx) btn.after(dragSrc);
+          else btn.before(dragSrc);
+        }
+        btn.classList.remove('drag-over');
+      });
+    });
+  }
+  document.addEventListener('DOMContentLoaded',()=>{loadFbOrder();initFbDrag();});
+})();
 function onSearch(){document.getElementById('sw-clear').classList.toggle('show',!!document.getElementById('search').value);render();}
 function clearSearch(){document.getElementById('search').value='';document.getElementById('sw-clear').classList.remove('show');render();}
 function resetAll(){
